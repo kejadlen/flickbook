@@ -12,15 +12,38 @@ Camping.goes :FlickBook
 
 module Flickr
   ApiKey = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+  Secret = 'XXXXXXXXXXXXXXXX'
   RestUrl = 'http://api.flickr.com/services/rest/'
 
   class << self
     def request(method, params)
-      url = "#{RestUrl}?method=flickr.#{method}&api_key=#{ApiKey}"
-      url << '&' << params.map {|k,v| "#{k}=#{v}" }.join('&') unless params.empty?
+      params[:api_key] = ApiKey
+      params[:method] = "flickr.#{method}"
+
+      url = "#{RestUrl}?#{params.map {|k,v| "#{k}=#{v}" }.join('&')}"
 
       response = Net::HTTP.get(URI.parse(url))
       CobraVsMongoose.xml_to_hash(response)['rsp']
+    end
+
+    def signed_request(method, params)
+      params[:api_sig] = signature(params.merge({ :api_key => ApiKey, :method => "flickr.#{method}"}))
+
+      request(method, params)
+    end
+
+    def login_url
+      params = { :api_key => ApiKey, :perms => 'read' }
+
+      url = "http://flickr.com/services/auth/?"
+      url << params.map {|k,v| "#{k}=#{v}" }.join('&')
+      url << "&api_sig=#{signature(params)}"
+
+      url
+    end
+
+    def signature(params)
+      Digest::MD5.hexdigest(Secret + params.map {|k,v| "#{k}#{Camping.un(v)}" }.sort.join)
     end
   end
 end
@@ -114,18 +137,19 @@ module FlickBook::Controllers
     end
   end
 
-  class Login < R '/login'
+  class FacebookLogin < R '/login/facebook'
     def get
       @state[:facebook] = Facebook::get_session(input.auth_token)
 
-      render :flickr_login
+      redirect Flickr::login_url
+      #render :flickr_login
     end
   end
 
-  class User < R '/user'
-    def post
-      response = Flickr::request('people.findByUsername', :username => input.username)
-      nsid = response['user']['@nsid']
+  class FlickrLogin < R '/login/flickr'
+    def get
+      response = Flickr::signed_request('auth.getToken', :frob => input.frob)
+      nsid = response['auth']['user']['@nsid']
 
       response = Flickr::request('photosets.getList', :user_id => nsid)
       @photosets = response['photosets']['photoset'][0..10]
