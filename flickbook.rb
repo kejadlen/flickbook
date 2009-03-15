@@ -46,8 +46,10 @@ class Flickbook < Shoes
   end
 
   def flickr_sets
+    photosets = Flickr.request('photosets.getList', :user_id => @@flickr.nsid)['photosets']['photoset']
+
     stack(:margin => 10) do
-      @@flickr.photosets.each do |photoset|
+      photosets.each do |photoset|
         para link(photoset['title']['$'], :click => "/upload/#{photoset['@id']}")
       end
     end
@@ -61,7 +63,7 @@ class Flickbook < Shoes
         end
     end
 
-    response = @@flickr.signed_request('photosets.getInfo', :photoset_id => id)
+    response = @@flickr.request('photosets.getInfo', :photoset_id => id)
     title = response['photoset']['title']['$']
     description = response['photoset']['description']['$'] || ''
     description << "\n\nOriginal set available on Flickr: http://flickr.com/photos/#{@@flickr.nsid}/sets/#{id}/"
@@ -70,13 +72,13 @@ class Flickbook < Shoes
     album_id = response['aid']['$']
     album_link = response['link']['$']
 
-    response = @@flickr.signed_request('photosets.getPhotos', :photoset_id => id)
+    response = @@flickr.request('photosets.getPhotos', :photoset_id => id)
     response['photoset']['photo'].each do |photo|
       filename = "#{photo['@id']}_#{photo['@secret']}.jpg"
       url = "http://farm#{photo['@farm']}.static.flickr.com/#{photo['@server']}/#{filename}"
       raw_data = Net::HTTP.get(URI.parse(url))
 
-      photo_info = @@flickr.signed_request('photos.getInfo', :photo_id => photo['@id'])['photo']
+      photo_info = @@flickr.request('photos.getInfo', :photo_id => photo['@id'])['photo']
       description = photo_info['description']['$']
 
       @log.clear do

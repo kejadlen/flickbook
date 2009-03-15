@@ -53,15 +53,11 @@ class Flickr
     @nsid = response['user']['@nsid']
   end
 
-  def photosets
-    Flickr.request('photosets.getList', :user_id => @nsid)['photosets']['photoset']
-  end
-
   def logged_in?
     !!@auth_token
   end
 
-  def signed_request(method, params)
+  def request(method, params)
     Flickr.signed_request(method, params.merge(:auth_token => @auth_token))
   end
 end
