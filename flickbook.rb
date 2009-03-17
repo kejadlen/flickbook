@@ -55,44 +55,83 @@ class Flickbook < Shoes
     end
   end
 
-  def upload(id)
-    stack(:margin => 10) do
-      @log =
-        stack(:margin => 10) do
-          para "Uploading photos..."
-        end
-    end
-
+  def photoset_info(id)
     response = @@flickr.request('photosets.getInfo', :photoset_id => id)
     title = response['photoset']['title']['$']
     description = response['photoset']['description']['$'] || ''
     description << "\n\nOriginal set available on Flickr: http://flickr.com/photos/#{@@flickr.nsid}/sets/#{id}/"
 
+    [title, description]
+  end
+
+  def create_album(title, description)
     response = @@facebook.request('photos.createAlbum', :name => title, :description => description)
-    album_id = response['aid']['$']
-    album_link = response['link']['$']
+    id = response['aid']['$']
+    link = response['link']['$']
 
+    [id, link]
+  end
+
+  def photoset_photos(id)
     response = @@flickr.request('photosets.getPhotos', :photoset_id => id)
-    response['photoset']['photo'].each do |photo|
-      filename = "#{photo['@id']}_#{photo['@secret']}.jpg"
-      url = "http://farm#{photo['@farm']}.static.flickr.com/#{photo['@server']}/#{filename}"
-      raw_data = Net::HTTP.get(URI.parse(url))
+    response['photoset']['photo']
+  end
 
-      photo_info = @@flickr.request('photos.getInfo', :photo_id => photo['@id'])['photo']
-      description = photo_info['description']['$']
+  def photo_info(id)
+    response = @@flickr.request('photos.getInfo', :photo_id => id)
+    title = response['photo']['title']['$']
+    description = response['photo']['description']['$']
 
-      @log.clear do
-        para "Uploading #{filename}..."
-        image "http://farm#{photo['@farm']}.static.flickr.com/#{photo['@server']}/#{filename}".sub(/\.jpg$/, '_s.jpg')
+    [title, description]
+  end
+
+  def upload_finished!
+    @@status.clear do
+      para link("Click to go to Facebook album \"#{@@title}\"", :click => @@album_link)
+    end
+  end
+
+  def upload_helper(photo)
+    id = photo['@id']
+    filename = "#{id}_#{photo['@secret']}.jpg"
+    url = "http://farm#{photo['@farm']}.static.flickr.com/#{photo['@server']}/#{filename}"
+    title, description = photo_info(id)
+
+    @@status.clear do
+      flow :margin => 10 do
+        image url.sub(/\.jpg$/, '_s.jpg'), :margin => 0 
+        stack :width => -115, :margin => 10 do
+          para title, :margin => 0
+          d = inscription 'Beginning transfer', :margin => 0
+          p = progress :width => 1.0, :height => 14
+          download url,
+            :start => proc { d.text = 'Downloading'; p.show },
+            :progress => proc {|dl| p.fraction = dl.percent * 0.1 },
+            :finish => proc {|dl|
+              d.text = 'Uploading to Facebook'
+
+              p.hide
+              @@facebook.upload_photo(filename, dl.response.body, :aid => @@album_id, :caption => description)
+              if @@photos.empty?
+                upload_finished!
+              else
+                upload_helper(@@photos.shift)
+              end
+            }
+        end
       end
-
-      @@facebook.upload_photo(filename, raw_data, :aid => album_id, :caption => description)
     end
+  end
 
-    @log.clear do
-      para link("#{title}", :click => album_link)
-    end
+  def upload(id)
+    @@status = stack(:margin => 10) {}
+
+    @@title, description = photoset_info(id)
+    @@album_id, @@album_link = create_album(@@title, description)
+
+    @@photos = photoset_photos(id)
+    upload_helper(@@photos.shift)
   end
 end
 
-Shoes.app :title => 'Flickbook'
+Shoes.app :title => 'Flickbook', :height => 450, :width => 450
