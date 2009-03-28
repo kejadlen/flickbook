@@ -134,4 +134,8 @@ class Flickbook < Shoes
   end
 end
 
+Shoes.setup do
+  gem 'cobravsmongoose'
+end
+
 Shoes.app :title => 'Flickbook', :height => 450, :width => 450
