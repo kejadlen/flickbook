@@ -1,141 +1,81 @@
+require 'net/http'
+require 'tempfile'
+
 require 'flickr'
 require 'facebook'
 
-class Flickbook < Shoes
-  url '/', :main
-  url '/flickr/login', :flickr_login
-  url '/facebook/login', :facebook_login
-  url '/flickr/sets', :flickr_sets
-  url '/upload/(\d+)', :upload
+firefox = "C:\\Program Files (x86)\\Mozilla Firefox 3.5 Beta 4\\firefox.exe"
 
-  @@flickr = Flickr.new
-  @@facebook = Facebook.new
+flickr = Flickr.new
+facebook = Facebook.new
 
-  def main
-    visit '/flickr/login'
-  end
+puts "Authorizing Flickr..."
+`"#{firefox}" "#{flickr.login_url}"`
+STDIN.gets
 
-  def flickr_login
-    stack(:margin => 10) do
-      subtitle strong('Flickr Authorization')
-      para link('Click to Authorize', :click => @@flickr.login_url)
-      button('Complete Authorization') do
-        begin
-          @@flickr.get_auth_token
-          visit '/facebook/login'
-        rescue
-          alert('Fail!')
-        end
-      end
-    end
-  end
+puts "Authorizing Facebook..."
+`"#{firefox}" "#{facebook.login_url}"`
+STDIN.gets
 
-  def facebook_login
-    stack(:margin => 10) do
-      subtitle strong('Facebook Authorization')
-      para link('Click to Authorize', :click => @@facebook.login_url)
-      button('Complete Authorization') do
-        begin
-          @@facebook.get_session
-          visit '/flickr/sets'
-        rescue
-          alert('Fail!')
-        end
-      end
-    end
-  end
+flickr.get_auth_token
+facebook.get_session
 
-  def flickr_sets
-    photosets = Flickr.request('photosets.getList', :user_id => @@flickr.nsid)['photosets']['photoset']
+puts "Getting photosets..."
 
-    stack(:margin => 10) do
-      photosets.each do |photoset|
-        para link(photoset['title']['$'], :click => "/upload/#{photoset['@id']}")
-      end
-    end
-  end
-
-  def photoset_info(id)
-    response = @@flickr.request('photosets.getInfo', :photoset_id => id)
-    title = response['photoset']['title']['$']
-    description = response['photoset']['description']['$'] || ''
-    description << "\n\nOriginal set available on Flickr: http://flickr.com/photos/#{@@flickr.nsid}/sets/#{id}/"
-
-    [title, description]
-  end
-
-  def create_album(title, description)
-    response = @@facebook.request('photos.createAlbum', :name => title, :description => description)
-    id = response['aid']['$']
-    link = response['link']['$']
-
-    [id, link]
-  end
-
-  def photoset_photos(id)
-    response = @@flickr.request('photosets.getPhotos', :photoset_id => id)
-    response['photoset']['photo']
-  end
-
-  def photo_info(id)
-    response = @@flickr.request('photos.getInfo', :photo_id => id)
-    title = response['photo']['title']['$']
-    description = response['photo']['description']['$']
-
-    [title, description]
-  end
-
-  def upload_finished!
-    @@status.clear do
-      para link("Click to go to Facebook album \"#{@@title}\"", :click => @@album_link)
-    end
-  end
-
-  def upload_helper(photo)
-    id = photo['@id']
-    filename = "#{id}_#{photo['@secret']}.jpg"
-    url = "http://farm#{photo['@farm']}.static.flickr.com/#{photo['@server']}/#{filename}"
-    title, description = photo_info(id)
-
-    @@status.clear do
-      flow :margin => 10 do
-        image url.sub(/\.jpg$/, '_s.jpg'), :margin => 0 
-        stack :width => -115, :margin => 10 do
-          para title, :margin => 0
-          d = inscription 'Beginning transfer', :margin => 0
-          p = progress :width => 1.0, :height => 14
-          download url,
-            :start => proc { d.text = 'Downloading'; p.show },
-            :progress => proc {|dl| p.fraction = dl.percent * 0.1 },
-            :finish => proc {|dl|
-              d.text = 'Uploading to Facebook'
-
-              p.hide
-              @@facebook.upload_photo(filename, dl.response.body, :aid => @@album_id, :caption => description)
-              if @@photos.empty?
-                upload_finished!
-              else
-                upload_helper(@@photos.shift)
-              end
-            }
-        end
-      end
-    end
-  end
-
-  def upload(id)
-    @@status = stack(:margin => 10) {}
-
-    @@title, description = photoset_info(id)
-    @@album_id, @@album_link = create_album(@@title, description)
-
-    @@photos = photoset_photos(id)
-    upload_helper(@@photos.shift)
-  end
+photosets = Flickr.request('photosets.getList', :user_id => flickr.nsid)['photosets']['photoset']
+ARGV.each do |arg|
+  photosets = photosets.select {|photoset| photoset['title']['$'] =~ /#{arg}/i }
 end
 
-Shoes.setup do
-  gem 'cobravsmongoose'
+if photosets.empty?
+  puts "No photosets found,"
+  exit
 end
 
-Shoes.app :title => 'Flickbook', :height => 450, :width => 450
+if photosets.size > 1
+  puts "Too many photosets; narrow your input."
+  photosets.each {|photoset| puts "\t#{photoset['title']['$']}" }
+  exit
+end
+
+photoset_id = photosets[0]['@id']
+
+response = flickr.request('photosets.getInfo', :photoset_id => photoset_id)
+title = response['photoset']['title']['$']
+description = response['photoset']['description']['$'] || ''
+description << "\n\n" unless description.empty?
+description << "Original set available on Flickr: http://flickr.com/photos/#{flickr.nsid}/sets/#{photoset_id}/"
+
+puts "Creating Facebook album..."
+
+response = facebook.request('photos.createAlbum', :name => title, :description => description)
+album_id = response['aid']['$']
+album_link = response['link']['$']
+
+puts "Getting photos..."
+
+response = flickr.request('photosets.getPhotos', :photoset_id => photoset_id, :media => 'photos')
+photos = response['photoset']['photo']
+
+photos.each do |photo|
+  photo_id = photo['@id']
+  filename = "#{photo_id}_#{photo['@secret']}.jpg"
+
+  response = flickr.request('photos.getInfo', :photo_id => photo_id)
+  title = response['photo']['title']['$']
+  description = response['photo']['description']['$'] || ''
+  description << "\n\n" unless description.empty?
+  description << "Higher-resolution photos available on Flickr: http://flickr.com/photos/#{flickr.nsid}/#{photo_id}/"
+
+  puts "\nDownloading #{title} from Flickr..."
+
+  response = Net::HTTP.get("farm#{photo['@farm']}.static.flickr.com", "/#{photo['@server']}/#{filename}")
+
+  puts "Uploading to Facebook..."
+
+  facebook.upload_photo(filename, response, :aid => album_id, :caption => description)
+end
+
+puts "Opening album in Firefox..."
+
+`"#{firefox}" "#{album_link}"`
