@@ -70,7 +70,7 @@ photos.each do |photo|
   title = response['photo']['title']['$']
   description = response['photo']['description']['$'] || ''
   description << "\n\n" unless description.empty?
-  description << "Higher-resolution available on Flickr: http://flickr.com/photos/#{flickr.nsid}/#{photo_id}/lightbox\n\n"
+  description << "Higher-resolution available on Flickr: http://flickr.com/photos/#{flickr.username || flickr.nsid}/#{photo_id}/lightbox\n\n"
   description << "This work is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License: http://creativecommons.org/licenses/by-nc-sa/3.0/"
 
   puts "\nDownloading #{title} from Flickr..."
