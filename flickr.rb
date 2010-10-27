@@ -8,7 +8,7 @@ class Flickr
   Secret = 'd32d10fb9a128089'
   RestUrl = 'http://api.flickr.com/services/rest/'
 
-  attr_reader :nsid
+  attr_reader :nsid, :username
 
   class << self
     def request(method, params)
@@ -51,6 +51,7 @@ class Flickr
 
     @auth_token = response['token']['$']
     @nsid = response['user']['@nsid']
+    @username = response['user']['@username']
   end
 
   def logged_in?

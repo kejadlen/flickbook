@@ -1,10 +1,13 @@
+#!/usr/bin/env ruby
+
 require 'net/http'
+require 'rbconfig'
 require 'tempfile'
 
-require 'flickr'
-require 'facebook'
+require File.join(File.dirname(__FILE__), 'flickr')
+require File.join(File.dirname(__FILE__), 'facebook')
 
-firefox = "C:\\Program Files (x86)\\Mozilla Firefox 3.5 Beta 4\\firefox.exe"
+firefox = (Config::CONFIG['host_os'] =~ /darwin/) ? 'open' : "C:\\Program Files (x86)\\Mozilla Firefox 3.5 Beta 4\\firefox.exe"
 
 flickr = Flickr.new
 facebook = Facebook.new
@@ -44,7 +47,9 @@ response = flickr.request('photosets.getInfo', :photoset_id => photoset_id)
 title = response['photoset']['title']['$']
 description = response['photoset']['description']['$'] || ''
 description << "\n\n" unless description.empty?
-description << "Original set available on Flickr: http://flickr.com/photos/#{flickr.nsid}/sets/#{photoset_id}/"
+description << <<DESCRIPTION
+Original set available on Flickr: http://flickr.com/photos/#{flickr.username || flickr.nsid}/sets/#{photoset_id}/
+DESCRIPTION
 
 puts "Creating Facebook album..."
 
@@ -65,7 +70,8 @@ photos.each do |photo|
   title = response['photo']['title']['$']
   description = response['photo']['description']['$'] || ''
   description << "\n\n" unless description.empty?
-  description << "Higher-resolution photos available on Flickr: http://flickr.com/photos/#{flickr.nsid}/#{photo_id}/"
+  description << "Higher-resolution available on Flickr: http://flickr.com/photos/#{flickr.nsid}/#{photo_id}/lightbox\n\n"
+  description << "This work is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License: http://creativecommons.org/licenses/by-nc-sa/3.0/"
 
   puts "\nDownloading #{title} from Flickr..."
 
