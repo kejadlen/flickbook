@@ -64,13 +64,13 @@ photos = response['photoset']['photo']
 
 photos.each do |photo|
   photo_id = photo['@id']
-  filename = "#{photo_id}_#{photo['@secret']}.jpg"
+  filename = "#{photo_id}_#{photo['@secret']}_z.jpg"
 
   response = flickr.request('photos.getInfo', :photo_id => photo_id)
   title = response['photo']['title']['$']
   description = response['photo']['description']['$'] || ''
   description << "\n\n" unless description.empty?
-  description << "Higher-resolution available on Flickr: http://flickr.com/photos/#{flickr.username || flickr.nsid}/#{photo_id}/lightbox\n\n"
+  description << "High-resolution available on Flickr: http://flickr.com/photos/#{flickr.username || flickr.nsid}/#{photo_id}/lightbox\n\n"
   description << "This work is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License: http://creativecommons.org/licenses/by-nc-sa/3.0/"
 
   puts "\nDownloading #{title} from Flickr..."

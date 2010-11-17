@@ -1,3 +1,5 @@
+# encoding: UTF-8
+
 require 'cgi'
 require 'cobravsmongoose'
 require 'digest/md5'
