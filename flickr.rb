@@ -4,8 +4,10 @@ require "digest/md5"
 require "net/http"
 
 class Flickr
-  ApiKey = '01c23ff3e672e264811ab9f40d8cad47'
-  Secret = 'd32d10fb9a128089'
+  config = YAML.load_file(File.join(File.dirname(__FILE__), 'config.yml'))['Flickr']
+
+  ApiKey = config['ApiKey']
+  Secret = config['Secret']
   RestUrl = 'http://api.flickr.com/services/rest/'
 
   attr_reader :nsid, :username

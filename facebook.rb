@@ -5,10 +5,13 @@ require 'cobravsmongoose'
 require 'digest/md5'
 require 'net/http'
 require 'net/https'
+require 'yaml'
 
 class Facebook
-  ApiKey = '76f0e8ed0eba10f3c3fe749185c07b89'
-  Secret = '4a87ff67dc5ce80671077a1e8a755d10'
+  config = YAML.load_file(File.join(File.dirname(__FILE__), 'config.yml'))['Facebook']
+
+  ApiKey = config['ApiKey']
+  Secret = config['Secret']
   RestUrl = 'http://api.facebook.com/restserver.php'
   LoginUrl = "http://www.facebook.com/login.php?api_key=#{ApiKey}&v=1.0&hide_checkbox=1"
   Boundary = 'zfLad5QPM0UOMd2NR6vHHA'
